@@ -24,10 +24,12 @@ update_player :: proc(dt: f32, player: ^ent.Player) {
 
     controls: ent.Controls = ent.get_controls(player.side)
     if rl.IsKeyDown(controls.left) {
-        player.vel.x -= p.player_speed * dt
+        player.vel.x = -p.player_base_speed * p.player_speed_ampl * dt
     }
     else if rl.IsKeyDown(controls.right) {
-        player.vel.x += p.player_speed * dt
+        player.vel.x = p.player_base_speed * p.player_speed_ampl * dt
+    } else {
+        player.vel.x = 0.0
     }
 
     player.pos += player.vel * dt
@@ -111,7 +113,7 @@ main :: proc() {
     
     // init boat
     boat = ent.Boat{
-        pos = {(f32(SCREEN_WIDTH) - ent.boat_size.x) / 2.0, f32(SCREEN_HEIGHT) - ent.boat_height}
+        pos = {(f32(SCREEN_WIDTH) - ent.boat_size.x) / 2.0, f32(SCREEN_HEIGHT) - ent.boat_init_y}
     }
 
     for !rl.WindowShouldClose() {
