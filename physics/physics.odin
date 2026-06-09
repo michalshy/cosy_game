@@ -14,4 +14,15 @@ collisions :: proc(player: ^ent.Player, boat: ^ent.Boat) {
     } else {
         player.grounded = false
     }
+
+    for &zone in boat.zones {
+        if rl.CheckCollisionRecs(
+            ent.player_rect(player), ent.zone_rect(&zone)
+        ) {
+            player.zone = &zone
+            break
+        } else {
+            player.zone = nil
+        }
+    }
 }

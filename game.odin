@@ -12,7 +12,7 @@ boat := ent.Boat{}
 
 update :: proc(delta_time: f32) {
     for &player in players {
-        ent.update_player(delta_time, &player)
+        ent.update_player(delta_time, &player, &boat)
     }
     ent.update_boat(&boat, delta_time)
     scene.update_env()
@@ -43,17 +43,21 @@ main :: proc() {
     // init players
     players[0] = ent.Player{
         pos = {f32(SCREEN_WIDTH / 4) + respawn_offset, starting_y},
-        side = ent.PlayerSide.LEFT
+        side = ent.PlayerSide.LEFT,
+        enable_movement = true
     }
     players[1] = ent.Player{
         pos = {f32(SCREEN_WIDTH - (SCREEN_WIDTH / 4)) - respawn_offset, starting_y},
-        side = ent.PlayerSide.RIGHT
+        side = ent.PlayerSide.RIGHT,
+        enable_movement = true
     }
     
     // init boat
     boat = ent.Boat{
-        pos = {(f32(SCREEN_WIDTH) - u.boat_size.x) / 2.0, f32(SCREEN_HEIGHT) - u.boat_init_y}
+        pos = {(f32(SCREEN_WIDTH) - u.boat_size.x) / 2.0, f32(SCREEN_HEIGHT) - u.boat_init_y},
+        time = 0.0,
     }
+    boat.zones = ent.init_zones(&boat)
 
     for !rl.WindowShouldClose() {
         rl.BeginDrawing()
