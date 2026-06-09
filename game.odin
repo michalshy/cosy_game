@@ -12,7 +12,7 @@ boat := ent.Boat{}
 
 update :: proc(delta_time: f32) {
     for &player in players {
-        ent.update_player(delta_time, &player, &boat)
+        ent.update_player(delta_time, &player)
     }
     ent.update_boat(&boat, delta_time)
     scene.update_env()

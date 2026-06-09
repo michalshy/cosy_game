@@ -37,12 +37,11 @@ get_controls :: proc(side: PlayerSide) -> Controls {
     return {} // required
 }
 
-update_player :: proc(dt: f32, player: ^Player, boat: ^Boat) {
+update_player :: proc(dt: f32, player: ^Player) {
     if !player.grounded {
         player.vel.y += u.gravity
     }
 
-    draw_debug(player)
 
     controls: Controls = get_controls(player.side)
     if player.enable_movement {
@@ -80,4 +79,6 @@ draw_player :: proc(player: ^Player) {
         u.player_size,
         player.side == PlayerSide.LEFT ? rl.RED : rl.GREEN
     )
+
+    draw_debug(player)
 }
