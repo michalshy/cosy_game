@@ -5,7 +5,7 @@ import rl "vendor:raylib"
 gravity: f32 : 980
 
 boat_speed: f32 : 0.5
-boat_amplitude: f32 : 0.1
+boat_amplitude: f32 : 20.0
 boat_size: rl.Vector2 : {600, 80}
 boat_init_y: f32 : 250.0
 

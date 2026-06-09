@@ -8,6 +8,7 @@ import u "../utils"
 Boat :: struct {
     pos: rl.Vector2,
     vel: rl.Vector2,
+    base_y: f32,
     time: f32
 }
 
@@ -21,7 +22,7 @@ update_boat :: proc(boat: ^Boat, dt: f32) {
 }
 
 move_boat :: proc(boat: ^Boat, dt: f32) {
-    boat.pos.y += math.sin(boat.time * u.boat_speed) * u.boat_amplitude
+    boat.pos.y = boat.base_y + math.sin(boat.time * u.boat_speed) * u.boat_amplitude
 }
 
 draw_boat :: proc(boat: ^Boat) {
