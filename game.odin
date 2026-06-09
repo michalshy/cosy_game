@@ -52,7 +52,8 @@ main :: proc() {
     
     // init boat
     boat = ent.Boat{
-        pos = {(f32(SCREEN_WIDTH) - u.boat_size.x) / 2.0, f32(SCREEN_HEIGHT) - u.boat_init_y}
+        pos = {(f32(SCREEN_WIDTH) - u.boat_size.x) / 2.0, f32(SCREEN_HEIGHT) - u.boat_init_y},
+        base_y = f32(SCREEN_HEIGHT) - u.boat_init_y
     }
 
     for !rl.WindowShouldClose() {

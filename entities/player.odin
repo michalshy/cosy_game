@@ -40,10 +40,10 @@ update_player :: proc(dt: f32, player: ^Player) {
 
     controls: Controls = get_controls(player.side)
     if rl.IsKeyDown(controls.left) {
-        player.vel.x = -u.player_base_speed * u.player_speed_ampl * dt
+        player.vel.x = -u.player_base_speed
     }
     else if rl.IsKeyDown(controls.right) {
-        player.vel.x = u.player_base_speed * u.player_speed_ampl * dt
+        player.vel.x = u.player_base_speed
     } else {
         player.vel.x = 0.0
     }
