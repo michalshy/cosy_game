@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:math"
+import "core:math/rand"
 import rl "vendor:raylib"
 
 // CONSTANTS
@@ -14,6 +15,11 @@ boat_size: rl.Vector2 : {600, 80}
 boat_init_y: f32 : 250.0
 
 fishing_zone_size: rl.Vector2 : {80,100}
+throwing_time: f32 : 2.0
+wait_time_low: f32 : 3.0
+wait_time_high: f32 : 20.0
+bite_time_low: f32 : 0.5
+bite_time_high: f32 : 1
 
 player_base_speed: f32 : 100.0
 player_size: rl.Vector2 : {20, 60}
@@ -57,7 +63,6 @@ Controls :: struct {
 }
 
 Player :: struct {
-    enable_movement: bool,
     pos: rl.Vector2,
     vel: rl.Vector2,
     grounded: bool,
@@ -73,7 +78,8 @@ FishingZone :: struct {
 
 Fishing :: struct {
     state: FishingState,
-    type: FishingType
+    type: FishingType,
+    timer: f32
 }
 
 // INITS
@@ -106,12 +112,14 @@ update_boat :: proc(boat: ^Boat, dt: f32) {
 }
 
 update_player :: proc(dt: f32, player: ^Player) {
+    update_fishing(player, dt);
+
     if !player.grounded {
         player.vel.y += gravity * dt
     }
 
     controls: Controls = get_controls(player.side)
-    if player.enable_movement {
+    if player.fishing.state == .IDLE {
         if rl.IsKeyDown(controls.left) {
             player.vel.x = -player_base_speed
         }
@@ -124,17 +132,55 @@ update_player :: proc(dt: f32, player: ^Player) {
         player.vel.x = 0.0
     }
 
-    if rl.IsKeyDown(controls.interact) {
-        if player.zone != nil {
-            player.fishing.state = FishingState.THROW
-            player.enable_movement = false
+    if rl.IsKeyPressed(controls.interact) {
+        if player.zone != nil && player.fishing.state == .IDLE {
+            player.fishing.state = .THROW
+            player.fishing.timer = throwing_time
+        }
+        if player.fishing.state == .BITE {
+            player.fishing.state = .FIGHT
         }
     }
-    
+    if rl.IsKeyReleased(controls.interact) {
+        if player.zone != nil && player.fishing.state == .THROW {
+            // we still successed to throw
+            if player.fishing.timer >= 0.0 {
+                // add power
+                player.fishing.state = .WAIT
+                player.fishing.timer = rand.float32_range(wait_time_low, wait_time_high)
+            }
+        }
+    }
 
     player.pos += player.vel * dt
 }
 
+update_fishing :: proc(player: ^Player, dt: f32) {
+    player.fishing.timer -= dt
+    switch player.fishing.state
+    {
+        case .IDLE: return
+        case .THROW: {
+            if player.fishing.timer <= 0 {
+                player.fishing.state = .IDLE
+            }
+        }
+        case .WAIT: {
+            if player.fishing.timer <= 0 {
+                player.fishing.state = .BITE
+                player.fishing.timer = bite_time_high
+            }
+        }
+        case .BITE: {
+            if player.fishing.timer <= 0 {
+                player.fishing.state = .IDLE
+            }
+        }
+        case .FIGHT: {
+
+        }
+    }
+}
 
 // DRAWS
 
@@ -173,6 +219,22 @@ draw_player :: proc(player: ^Player) {
         player_size,
         player.side == Side.LEFT ? rl.RED : rl.GREEN
     )
+
+    switch player.fishing.state {
+        case .IDLE: break
+        case .THROW: {
+
+        }
+        case .WAIT: {
+
+        }
+        case .BITE: {
+
+        }
+        case .FIGHT: {
+
+        }
+    }
 
     draw_debug(player)
 }
@@ -259,13 +321,11 @@ main :: proc() {
     // init players
     players[0] = Player{
         pos = {f32(SCREEN_WIDTH / 4) + respawn_offset, starting_y},
-        side = Side.LEFT,
-        enable_movement = true
+        side = Side.LEFT
     }
     players[1] = Player{
         pos = {f32(SCREEN_WIDTH - (SCREEN_WIDTH / 4)) - respawn_offset, starting_y},
-        side = Side.RIGHT,
-        enable_movement = true
+        side = Side.RIGHT
     }
     
     // init boat
