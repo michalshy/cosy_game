@@ -5,7 +5,7 @@ import "core:math"
 import "core:math/rand"
 import rl "vendor:raylib"
 
-// CONSTANTS
+// GLOBS
 
 gravity: f32 : 980
 
@@ -15,6 +15,10 @@ boat_size: rl.Vector2 : {600, 80}
 boat_init_y: f32 : 250.0
 
 fishing_zone_size: rl.Vector2 : {80,100}
+fishing_pond_size: rl.Vector2 : {120, 40}
+fishing_pond_offset: int : 120
+bobber_size: rl.Vector2 : {20,20}
+
 throwing_time: f32 : 2.0
 wait_time_low: f32 : 3.0
 wait_time_high: f32 : 20.0
@@ -27,8 +31,12 @@ player_size: rl.Vector2 : {20, 60}
 players := [2]Player{}
 boat := Boat{}
 
-// ENUMS
+PlayerSprites :: struct {
+    idle: Sprite,
+    walk: Sprite,
+}
 
+// ENUMS
 
 FishingState :: enum {
     IDLE,
@@ -69,27 +77,44 @@ Player :: struct {
     side: Side,
     fishing: Fishing,
     zone: ^FishingZone,
+    sprites: PlayerSprites,
+    current_sprite: ^Sprite
 }
 
 FishingZone :: struct {
     side: Side,
-    pos: rl.Vector2
+    pos: rl.Vector2,
+    pond: rl.Vector2,
+    bobber_pos: rl.Vector2
 }
 
 Fishing :: struct {
     state: FishingState,
     type: FishingType,
-    timer: f32
+    timer: f32,
+    power: f32,
+    bobber_active: bool
+}
+
+Sprite :: struct {
+    texture: rl.Texture2D,
+    frame: i32,
+    frame_count: i32,
+    frame_w: f32,
+    frame_h: f32,
+    timer: f32,
+    frame_time: f32
 }
 
 // INITS
 
 init_zones :: proc(boat: ^Boat) -> [2]FishingZone {
     zones: [2]rl.Vector2 = get_fishing_zones(boat)
+    ponds: [2]rl.Vector2 = get_fishing_ponds(boat)
 
     return {
-        { side = Side.LEFT, pos = zones[0] },
-        { side = Side.RIGHT, pos = zones[1] }
+        { side = Side.LEFT, pos = zones[0], pond = ponds[0] },
+        { side = Side.RIGHT, pos = zones[1], pond = ponds[1] }
     }
 }
 
@@ -147,9 +172,20 @@ update_player :: proc(dt: f32, player: ^Player) {
             if player.fishing.timer >= 0.0 {
                 // add power
                 player.fishing.state = .WAIT
+                player.fishing.power = 1.0 - (player.fishing.timer / throwing_time)
+                player.fishing.bobber_active = true
+                t := player.side == .LEFT ? (1.0 - player.fishing.power) : player.fishing.power
+                player.zone.bobber_pos.x = player.zone.pond.x + fishing_pond_size.x * t
+                player.zone.bobber_pos.y = player.zone.pond.y + bobber_size.y/2
                 player.fishing.timer = rand.float32_range(wait_time_low, wait_time_high)
             }
         }
+    }
+
+    if player.fishing.state == .FIGHT {
+        player.fishing.state = .IDLE
+        player.fishing.bobber_active = false
+        player.fishing.power = 0
     }
 
     player.pos += player.vel * dt
@@ -199,10 +235,17 @@ draw_boat :: proc(boat: ^Boat) {
         rl.DARKGRAY
     )
 
+    // debug
     for zone in boat.zones {
         rl.DrawRectangleV(
             zone.pos,
             fishing_zone_size,
+            rl.Color{122, 122, 122, 30}
+        )
+
+        rl.DrawRectangleV(
+            zone.pond,
+            fishing_pond_size,
             rl.Color{122, 122, 122, 30}
         )
     }
@@ -214,29 +257,49 @@ draw_debug :: proc(player: ^Player) {
 }
 
 draw_player :: proc(player: ^Player) {
-    rl.DrawRectangleV(
-        player.pos,
-        player_size,
-        player.side == Side.LEFT ? rl.RED : rl.GREEN
-    )
+    src := rl.Rectangle{
+        f32(player.current_sprite.frame) * player.current_sprite.frame_w,
+        0,
+        player.current_sprite.frame_w,
+        player.current_sprite.frame_h,
+    }
+    rl.DrawTextureRec(player.current_sprite.texture, src, player.pos, rl.WHITE)
 
     switch player.fishing.state {
         case .IDLE: break
         case .THROW: {
-
+            draw_throwing(player)
         }
         case .WAIT: {
-
+            draw_bobber(player)
         }
         case .BITE: {
-
+            draw_bobber(player)
         }
         case .FIGHT: {
-
+            draw_bobber(player)
         }
     }
 
     draw_debug(player)
+}
+
+draw_throwing :: proc(player: ^Player) {
+    progress := 1.0 - (player.fishing.timer / throwing_time)
+
+    bar_w: f32 = 60
+    bar_h: f32 = 8
+    x := player.pos.x - (bar_w - player_size.x) / 2
+    y := player.pos.y - 20
+
+    rl.DrawRectangle(i32(x), i32(y), i32(bar_w), i32(bar_h), rl.GRAY)
+    rl.DrawRectangle(i32(x), i32(y), i32(bar_w * progress), i32(bar_h), rl.YELLOW)
+}
+
+draw_bobber :: proc(player: ^Player) {
+    if player.fishing.bobber_active {
+        rl.DrawRectangle(i32(player.zone.bobber_pos.x), i32(player.zone.bobber_pos.y), i32(bobber_size.x), i32(bobber_size.y), rl.RED)
+    }
 }
 
 // RECTS
@@ -291,6 +354,13 @@ get_fishing_zones :: proc(boat: ^Boat) -> [2]rl.Vector2 {
     }
 }
 
+get_fishing_ponds :: proc(boat: ^Boat) -> [2]rl.Vector2 {
+    return {
+        { boat.pos.x - fishing_pond_size.x - f32(fishing_pond_offset), boat.pos.y + boat_size.y / 2 },
+        { boat.pos.x + boat_size.x + f32(fishing_pond_offset), boat.pos.y + boat_size.y / 2 }
+    }
+}
+
 get_controls :: proc(side: Side) -> Controls {
     switch side {
         case .LEFT: return { .A, .D, .S }
@@ -307,8 +377,32 @@ draw_env :: proc() {
 
 }
 
-main :: proc() {
+load_sprite :: proc(path: cstring, frame_count: i32, frame_time: f32) -> Sprite {
+    tex := rl.LoadTexture(path)
+    return {
+        texture = tex,
+        frame_count = frame_count,
+        frame_w     = f32(tex.width) / f32(frame_count),
+        frame_h     = f32(tex.height),
+        frame_time  = frame_time,
+    }
+}
 
+load_sprites :: proc() {
+    players[0].sprites.idle = load_sprite("assets/fisherman/idle.png", 6, 0.15)
+    players[0].sprites.walk = load_sprite("assets/fisherman/walk.png", 6, 0.15)
+    players[1].sprites.idle = load_sprite("assets/fisherman/idle.png", 6, 0.15)
+    players[1].sprites.walk = load_sprite("assets/fisherman/walk.png", 6, 0.15)
+}
+
+unload_sprites :: proc() {
+    rl.UnloadTexture(players[0].sprites.idle.texture)
+    rl.UnloadTexture(players[1].sprites.idle.texture)
+    rl.UnloadTexture(players[0].sprites.walk.texture)
+    rl.UnloadTexture(players[1].sprites.walk.texture)
+}
+
+main :: proc() {
     rl.InitWindow(0, 0, "Fishy")
     rl.ToggleBorderlessWindowed()
     rl.SetTargetFPS(120)
@@ -335,6 +429,10 @@ main :: proc() {
     }
     boat.zones = init_zones(&boat)
 
+    load_sprites()
+    players[0].current_sprite = &players[0].sprites.idle;
+    players[1].current_sprite = &players[1].sprites.idle;
+
     for !rl.WindowShouldClose() {
         rl.BeginDrawing()
         rl.ClearBackground(rl.SKYBLUE)
@@ -344,4 +442,6 @@ main :: proc() {
 
         rl.EndDrawing()
     }
+
+    unload_sprites()
 }
