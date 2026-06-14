@@ -14,7 +14,7 @@ gravity: f32 : 980
 
 boat_speed: f32 : 1
 boat_amplitude: f32 : 10
-boat_size: rl.Vector2 : {200, 40}
+boat_size: rl.Vector2 : {240, 40}
 boat_init_y: f32 : 80
 
 fishing_zone_size: rl.Vector2 : {20,30}
