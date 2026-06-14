@@ -7,17 +7,20 @@ import rl "vendor:raylib"
 
 // GLOBS
 
+RENDER_W :: 640
+RENDER_H :: 360
+
 gravity: f32 : 980
 
-boat_speed: f32 : 1.3
-boat_amplitude: f32 : 15
-boat_size: rl.Vector2 : {600, 80}
-boat_init_y: f32 : 250.0
+boat_speed: f32 : 1
+boat_amplitude: f32 : 10
+boat_size: rl.Vector2 : {200, 40}
+boat_init_y: f32 : 80
 
-fishing_zone_size: rl.Vector2 : {80,100}
-fishing_pond_size: rl.Vector2 : {120, 40}
+fishing_zone_size: rl.Vector2 : {20,30}
+fishing_pond_size: rl.Vector2 : {40, 10}
 fishing_pond_offset: int : 120
-bobber_size: rl.Vector2 : {20,20}
+bobber_size: rl.Vector2 : {10,10}
 
 throwing_time: f32 : 2.0
 wait_time_low: f32 : 3.0
@@ -25,8 +28,8 @@ wait_time_high: f32 : 20.0
 bite_time_low: f32 : 0.5
 bite_time_high: f32 : 1
 
-player_base_speed: f32 : 100.0
-player_size: rl.Vector2 : {20, 60}
+player_base_speed: f32 : 60.0
+player_size: rl.Vector2 : {32, 48}
 
 players := [2]Player{}
 boat := Boat{}
@@ -78,6 +81,7 @@ Player :: struct {
     fishing: Fishing,
     zone: ^FishingZone,
     sprites: PlayerSprites,
+    flip: bool,
     current_sprite: ^Sprite
 }
 
@@ -137,13 +141,80 @@ update_boat :: proc(boat: ^Boat, dt: f32) {
 }
 
 update_player :: proc(dt: f32, player: ^Player) {
-    update_fishing(player, dt);
+    update_fishing(player, dt)
+    
+    check_grounded(player, dt)
+    apply_controls(player, dt)
+    
+    update_sprite(player.current_sprite, dt)
+    // temp
+    fighting_minigame(player, dt)
+    
 
+    // apply velocity
+    player.pos += player.vel * dt
+}
+
+update_fishing :: proc(player: ^Player, dt: f32) {
+    player.fishing.timer -= dt
+    switch player.fishing.state
+    {
+        case .IDLE: return
+        case .THROW: {
+            if player.fishing.timer <= 0 {
+                player.fishing.state = .IDLE
+            }
+        }
+        case .WAIT: {
+            if player.fishing.timer <= 0 {
+                player.fishing.state = .BITE
+                player.fishing.timer = bite_time_high
+            }
+        }
+        case .BITE: {
+            if player.fishing.timer <= 0 {
+                player.fishing.state = .IDLE
+            }
+        }
+        case .FIGHT: {
+
+        }
+    }
+}
+
+update_sprite :: proc(s: ^Sprite, dt: f32) {
+    s.timer += dt
+    if s.timer >= s.frame_time {
+        s.timer = 0
+        s.frame = (s.frame + 1) % s.frame_count
+    }
+}
+
+check_grounded :: proc(player: ^Player, dt: f32) {
     if !player.grounded {
         player.vel.y += gravity * dt
     }
+}
 
+apply_controls :: proc(player: ^Player, dt: f32) {
     controls: Controls = get_controls(player.side)
+
+    if rl.IsKeyDown(controls.left) || rl.IsKeyDown(controls.right) {
+        player.current_sprite = &player.sprites.walk
+    } else {
+        player.current_sprite = &player.sprites.idle
+    }
+
+    if player.flip {
+        if player.vel.x > 0 {
+            player.flip = false
+        }
+    } else {
+        if player.vel.x < 0 {
+            player.flip = true
+        }
+    }
+
     if player.fishing.state == .IDLE {
         if rl.IsKeyDown(controls.left) {
             player.vel.x = -player_base_speed
@@ -181,40 +252,14 @@ update_player :: proc(dt: f32, player: ^Player) {
             }
         }
     }
+}
 
+fighting_minigame :: proc(player: ^Player, dt: f32) {
+    // temp
     if player.fishing.state == .FIGHT {
         player.fishing.state = .IDLE
         player.fishing.bobber_active = false
         player.fishing.power = 0
-    }
-
-    player.pos += player.vel * dt
-}
-
-update_fishing :: proc(player: ^Player, dt: f32) {
-    player.fishing.timer -= dt
-    switch player.fishing.state
-    {
-        case .IDLE: return
-        case .THROW: {
-            if player.fishing.timer <= 0 {
-                player.fishing.state = .IDLE
-            }
-        }
-        case .WAIT: {
-            if player.fishing.timer <= 0 {
-                player.fishing.state = .BITE
-                player.fishing.timer = bite_time_high
-            }
-        }
-        case .BITE: {
-            if player.fishing.timer <= 0 {
-                player.fishing.state = .IDLE
-            }
-        }
-        case .FIGHT: {
-
-        }
     }
 }
 
@@ -257,13 +302,19 @@ draw_debug :: proc(player: ^Player) {
 }
 
 draw_player :: proc(player: ^Player) {
+    s := player.current_sprite
     src := rl.Rectangle{
-        f32(player.current_sprite.frame) * player.current_sprite.frame_w,
+        f32(s.frame) * s.frame_w,
         0,
-        player.current_sprite.frame_w,
-        player.current_sprite.frame_h,
+        player.flip ? -s.frame_w : s.frame_w,
+        s.frame_h,
+    }
+    pos := rl.Vector2{
+        player.flip ? player.pos.x + s.frame_w : player.pos.x,
+        player.pos.y,
     }
     rl.DrawTextureRec(player.current_sprite.texture, src, player.pos, rl.WHITE)
+    //rl.DrawRectangleLines(i32(player.pos.x), i32(player.pos.y), 32, 48, rl.RED)
 
     switch player.fishing.state {
         case .IDLE: break
@@ -319,7 +370,7 @@ player_rect :: proc(player: ^Player) -> rl.Rectangle {
 // PHYSICS
 
 move_boat :: proc(boat: ^Boat, dt: f32) {
-    boat.pos.y = f32(rl.GetScreenHeight()) - boat_init_y + math.sin(boat.time * boat_speed) * boat_amplitude
+    boat.pos.y = f32(RENDER_H) - boat_init_y + math.sin(boat.time * boat_speed) * boat_amplitude
 }
 
 collisions :: proc(player: ^Player, boat: ^Boat) {
@@ -389,9 +440,9 @@ load_sprite :: proc(path: cstring, frame_count: i32, frame_time: f32) -> Sprite 
 }
 
 load_sprites :: proc() {
-    players[0].sprites.idle = load_sprite("assets/fisherman/idle.png", 6, 0.15)
+    players[0].sprites.idle = load_sprite("assets/fisherman/idle.png", 4, 0.15)
     players[0].sprites.walk = load_sprite("assets/fisherman/walk.png", 6, 0.15)
-    players[1].sprites.idle = load_sprite("assets/fisherman/idle.png", 6, 0.15)
+    players[1].sprites.idle = load_sprite("assets/fisherman/idle.png", 4, 0.15)
     players[1].sprites.walk = load_sprite("assets/fisherman/walk.png", 6, 0.15)
 }
 
@@ -407,8 +458,8 @@ main :: proc() {
     rl.ToggleBorderlessWindowed()
     rl.SetTargetFPS(120)
     
-    SCREEN_WIDTH := rl.GetScreenWidth()
-    SCREEN_HEIGHT := rl.GetScreenHeight()
+    SCREEN_WIDTH := RENDER_W
+    SCREEN_HEIGHT := RENDER_H
     respawn_offset :: 150
     starting_y := f32(SCREEN_HEIGHT)  - player_size.y - boat_init_y - 10
     
@@ -433,15 +484,24 @@ main :: proc() {
     players[0].current_sprite = &players[0].sprites.idle;
     players[1].current_sprite = &players[1].sprites.idle;
 
+    render_target := rl.LoadRenderTexture(RENDER_W, RENDER_H)
+
     for !rl.WindowShouldClose() {
-        rl.BeginDrawing()
-        rl.ClearBackground(rl.SKYBLUE)
-
         update(rl.GetFrameTime())
-        draw()
 
+        rl.BeginTextureMode(render_target)
+            rl.ClearBackground(rl.SKYBLUE)
+            draw()
+        rl.EndTextureMode()
+
+        rl.BeginDrawing()
+            src := rl.Rectangle{0, 0, RENDER_W, -RENDER_H}
+            dst := rl.Rectangle{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
+            rl.DrawTexturePro(render_target.texture, src, dst, {0, 0}, 0, rl.WHITE)
         rl.EndDrawing()
     }
 
+    rl.UnloadRenderTexture(render_target)
     unload_sprites()
+    rl.CloseWindow()
 }
