@@ -414,6 +414,7 @@ draw_player :: proc(player: ^Player) {
         }
         case .FIGHT: {
             draw_bobber(player)
+            draw_fight(player)
         }
     }
 
@@ -436,6 +437,34 @@ draw_bobber :: proc(player: ^Player) {
     if player.fishing.bobber_active {
         rl.DrawRectangle(i32(player.zone.bobber_pos.x), i32(player.zone.bobber_pos.y), i32(bobber_size.x), i32(bobber_size.y), rl.RED)
     }
+}
+
+draw_fight :: proc(player: ^Player) {
+    fight := player.fight_game
+    track_x: i32 = i32(player.fight_game.bar_pos.x)
+    track_y: i32 = i32(player.fight_game.bar_pos.y)
+
+    rl.DrawRectangle(track_x, track_y, fight_bar_width, 20, rl.DARKGRAY)
+
+    rl.DrawRectangle(
+        track_x + i32(fight.fish_pos.x),
+        track_y,
+        fight_bar_width,
+        20,
+        rl.ORANGE,
+    )
+
+    rl.DrawRectangle(
+        track_x + i32(fight.bar_pos.x) - 2,
+        track_y,
+        4,
+        20,
+        rl.GREEN,
+    )
+
+    rl.DrawRectangleLines(track_x, track_y, fight_bar_width, 20, rl.WHITE)
+
+    rl.DrawRectangleLines(track_x, track_y -  12, fight_bar_width, 8, rl.WHITE)
 }
 
 // RECTS
