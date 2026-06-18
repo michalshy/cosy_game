@@ -31,8 +31,26 @@ bite_time_high: f32 : 1
 player_base_speed: f32 : 60.0
 player_size: rl.Vector2 : {32, 48}
 
+fight_bar_width: i32 : 50
+fight_bar_height: i32 : 150
+
 players := [2]Player{}
 boat := Boat{}
+
+fish_stats := [FishType]FishStats{
+      .ROACH       = { 3,  8,  1.5, 5, 80,  60, 5   },
+      .PERCH       = { 5,  12, 1.0, 6, 130, 50, 15  },
+      .CARP        = { 8,  15, 0.8, 7, 110, 45, 25  },
+      .PIKE        = { 10, 18, 0.7, 8, 180, 40, 50  },
+      .CATFISH     = { 12, 20, 0.6, 9, 160, 35, 60  },
+      .EEL         = { 8,  16, 0.5, 10, 220, 30, 80  },
+      .GOLDFISH    = { 15, 20, 0.4, 11, 250, 25, 200 },
+  }
+
+bar_pos := [Side]rl.Vector2{
+    .LEFT = {470, 260},
+    .RIGHT = {120, 260}
+}
 
 PlayerSprites :: struct {
     idle: Sprite,
@@ -56,6 +74,30 @@ FishingType :: enum {
 Side :: enum {
     LEFT,
     RIGHT
+}
+
+FishingPlaces :: enum {
+    STANDARD
+}
+
+FishType :: enum {
+    ROACH,
+    CARP,
+    PERCH,
+    PIKE,
+    CATFISH,
+    EEL,
+    GOLDFISH
+}
+
+FishStats :: struct {
+    wait_min: f32,
+    wait_max: f32,
+    bite_time: f32,
+    fight_time: f32,
+    fish_speed: f32,
+    bar_width: i32,
+    value: i32
 }
 
 // STRUCTURES
@@ -82,7 +124,8 @@ Player :: struct {
     zone: ^FishingZone,
     sprites: PlayerSprites,
     flip: bool,
-    current_sprite: ^Sprite
+    current_sprite: ^Sprite,
+    fight_game: ^FightGame
 }
 
 FishingZone :: struct {
@@ -108,6 +151,17 @@ Sprite :: struct {
     frame_h: f32,
     timer: f32,
     frame_time: f32
+}
+
+FightGame :: struct {
+    fish: FishType,
+    fish_pos: rl.Vector2,
+    fish_vel: f32,
+    bar_width: i32,
+    bar_pos: rl.Vector2,
+    bar_vel: f32,
+    on_time: f32,
+    begin: bool,
 }
 
 // INITS
@@ -147,9 +201,6 @@ update_player :: proc(dt: f32, player: ^Player) {
     apply_controls(player, dt)
     
     update_sprite(player.current_sprite, dt)
-    // temp
-    fighting_minigame(player, dt)
-    
 
     // apply velocity
     player.pos += player.vel * dt
@@ -157,27 +208,40 @@ update_player :: proc(dt: f32, player: ^Player) {
 
 update_fishing :: proc(player: ^Player, dt: f32) {
     player.fishing.timer -= dt
+
+    if player.fishing.state == .IDLE && player.fight_game != nil {
+        free(player.fight_game)
+    }
+
     switch player.fishing.state
     {
         case .IDLE: return
         case .THROW: {
             if player.fishing.timer <= 0 {
                 player.fishing.state = .IDLE
+                if player.fight_game != nil {
+                    free(player.fight_game)
+                }
             }
         }
         case .WAIT: {
             if player.fishing.timer <= 0 {
-                player.fishing.state = .BITE
-                player.fishing.timer = bite_time_high
+                if player.fight_game != nil {
+                    player.fishing.state = .BITE
+                    player.fishing.timer = fish_stats[player.fight_game.fish].bite_time
+                }
             }
         }
         case .BITE: {
             if player.fishing.timer <= 0 {
                 player.fishing.state = .IDLE
+                if player.fight_game != nil {
+                    free(player.fight_game)
+                }
             }
         }
         case .FIGHT: {
-
+            fighting_game(player, dt)
         }
     }
 }
@@ -235,6 +299,7 @@ apply_controls :: proc(player: ^Player, dt: f32) {
         }
         if player.fishing.state == .BITE {
             player.fishing.state = .FIGHT
+            player.fishing.timer = fish_stats[player.fight_game.fish].fight_time
         }
     }
     if rl.IsKeyReleased(controls.interact) {
@@ -248,18 +313,38 @@ apply_controls :: proc(player: ^Player, dt: f32) {
                 t := player.side == .LEFT ? (1.0 - player.fishing.power) : player.fishing.power
                 player.zone.bobber_pos.x = player.zone.pond.x + fishing_pond_size.x * t
                 player.zone.bobber_pos.y = player.zone.pond.y + bobber_size.y/2
-                player.fishing.timer = rand.float32_range(wait_time_low, wait_time_high)
+
+                // active game
+                if player.fight_game == nil {
+                    type: FishType = .ROACH
+                    player.fight_game = new(FightGame)
+                    player.fight_game.fish = type // currently hardcoded
+                    player.fight_game.bar_width = fish_stats[type].bar_width
+                    player.fight_game.fish_pos = bar_pos[player.zone.side] + f32(fight_bar_height/2)
+                    player.fight_game.bar_pos = bar_pos[player.zone.side] + f32(fight_bar_height/2)
+                    player.fight_game.begin = false
+                    
+                    player.fishing.timer = rand.float32_range(fish_stats[type].wait_min, fish_stats[type].wait_max)
+                }
             }
         }
     }
 }
 
-fighting_minigame :: proc(player: ^Player, dt: f32) {
-    // temp
-    if player.fishing.state == .FIGHT {
-        player.fishing.state = .IDLE
-        player.fishing.bobber_active = false
-        player.fishing.power = 0
+succeed_game :: proc(player: ^Player) {
+    player.fishing.timer = 0
+    player.fishing.power = 0
+    player.fishing.state = .IDLE
+}
+
+fighting_game :: proc(player: ^Player, dt: f32) {
+    if true {
+        // on time
+        player.fight_game.on_time += dt
+    }
+
+    if player.fight_game.on_time >= fish_stats[player.fight_game.fish].fight_time/2 {
+        succeed_game(player)
     }
 }
 
@@ -314,7 +399,7 @@ draw_player :: proc(player: ^Player) {
         player.pos.y,
     }
     rl.DrawTextureRec(player.current_sprite.texture, src, player.pos, rl.WHITE)
-    //rl.DrawRectangleLines(i32(player.pos.x), i32(player.pos.y), 32, 48, rl.RED)
+    // rl.DrawRectangleLines(i32(player.pos.x), i32(player.pos.y), 32, 48, rl.RED)
 
     switch player.fishing.state {
         case .IDLE: break
