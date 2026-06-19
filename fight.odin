@@ -3,46 +3,49 @@ package main
 import rl "vendor:raylib"
 
 succeed_game :: proc(player: ^Player) {
-    player.fishing.timer = 0
-    player.fishing.power = 0
-    player.fishing.state = .IDLE
+    player.fishing.timer  = 0
+    player.fishing.power  = 0
+    player.fishing.state  = .IDLE
+    if player.fight_game != nil {
+        free(player.fight_game)
+        player.fight_game = nil
+    }
 }
 
 fighting_game :: proc(player: ^Player, dt: f32) {
-    if true {
-        // on time
-        player.fight_game.on_time += dt
+    fight := player.fight_game
+    stats := fish_stats[fight.fish]
+    bar_len := f32(fight_bar_height)
+    fish_w  := f32(stats.bar_width)
+
+    fight.fish_t += fight.fish_vel * dt
+    if fight.fish_t <= 0 || fight.fish_t + fish_w >= bar_len {
+        fight.fish_vel = -fight.fish_vel
+        fight.fish_t   = clamp(fight.fish_t, 0, bar_len - fish_w)
     }
 
-    if player.fight_game.on_time >= fish_stats[player.fight_game.fish].fight_time/2 {
+    controls := get_controls(player.side)
+    if rl.IsKeyDown(controls.left)  { fight.bar_t -= 150 * dt }
+    if rl.IsKeyDown(controls.right) { fight.bar_t += 150 * dt }
+    fight.bar_t = clamp(fight.bar_t, 0, bar_len)
+
+    if fight.bar_t >= fight.fish_t && fight.bar_t <= fight.fish_t + fish_w {
+        fight.on_time += dt
+    }
+
+    if fight.on_time >= stats.fight_time {
         succeed_game(player)
     }
 }
 
 draw_fight :: proc(player: ^Player) {
     fight := player.fight_game
-    track_x: i32 = i32(player.fight_game.bar_pos.x)
-    track_y: i32 = i32(player.fight_game.bar_pos.y)
+    tx := i32(fight.track_origin.x)
+    ty := i32(fight.track_origin.y)
+    fish_w := fish_stats[fight.fish].bar_width
 
-    rl.DrawRectangle(track_x, track_y, fight_bar_width, 20, rl.DARKGRAY)
-
-    rl.DrawRectangle(
-        track_x + i32(fight.fish_pos.x),
-        track_y,
-        fight_bar_width,
-        20,
-        rl.ORANGE,
-    )
-
-    rl.DrawRectangle(
-        track_x + i32(fight.bar_pos.x) - 2,
-        track_y,
-        4,
-        20,
-        rl.GREEN,
-    )
-
-    rl.DrawRectangleLines(track_x, track_y, fight_bar_width, 20, rl.WHITE)
-
-    rl.DrawRectangleLines(track_x, track_y -  12, fight_bar_width, 8, rl.WHITE)
+    rl.DrawRectangle(tx, ty, fight_bar_height, 20, rl.DARKGRAY)
+    rl.DrawRectangle(tx + i32(fight.fish_t), ty, fish_w, 20, rl.ORANGE)
+    rl.DrawRectangle(tx + i32(fight.bar_t) - 2, ty, 4, 20, rl.GREEN)
+    rl.DrawRectangleLines(tx, ty, fight_bar_height, 20, rl.WHITE)
 }

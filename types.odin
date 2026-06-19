@@ -105,14 +105,12 @@ Sprite :: struct {
 }
 
 FightGame :: struct {
-    fish: FishType,
-    fish_pos: rl.Vector2,
-    fish_vel: f32,
-    bar_width: i32,
-    bar_pos: rl.Vector2,
-    bar_vel: f32,
-    on_time: f32,
-    begin: bool,
+    fish:         FishType,
+    track_origin: rl.Vector2,  
+    fish_t:       f32,         
+    fish_vel:     f32,
+    bar_t:        f32,         
+    on_time:      f32,
 }
 
 GameState :: struct {

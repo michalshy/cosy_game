@@ -88,12 +88,12 @@ apply_controls :: proc(player: ^Player, dt: f32) {
                 if player.fight_game == nil {
                     type: FishType = .ROACH
                     player.fight_game = new(FightGame)
-                    player.fight_game.fish = type // currently hardcoded
-                    player.fight_game.bar_width = fish_stats[type].bar_width
-                    player.fight_game.fish_pos = bar_pos[player.zone.side] + f32(fight_bar_height/2)
-                    player.fight_game.bar_pos = bar_pos[player.zone.side] + f32(fight_bar_height/2)
-                    player.fight_game.begin = false
-                    
+                    player.fight_game.fish         = type
+                    player.fight_game.track_origin = bar_pos[player.zone.side]
+                    player.fight_game.fish_t       = f32(fight_bar_height) / 2
+                    player.fight_game.fish_vel     = fish_stats[type].fish_speed
+                    player.fight_game.bar_t        = f32(fight_bar_height) / 2
+
                     player.fishing.timer = rand.float32_range(fish_stats[type].wait_min, fish_stats[type].wait_max)
                 }
             }
@@ -109,11 +109,12 @@ draw_player :: proc(player: ^Player) {
         player.flip ? -s.frame_w : s.frame_w,
         s.frame_h,
     }
-    pos := rl.Vector2{
-        player.flip ? player.pos.x + s.frame_w : player.pos.x,
-        player.pos.y,
-    }
     rl.DrawTextureRec(player.current_sprite.texture, src, player.pos, rl.WHITE)
+    // Collider debug
+    // pos := rl.Vector2{
+    //     player.flip ? player.pos.x + s.frame_w : player.pos.x,
+    //     player.pos.y,
+    // }
     // rl.DrawRectangleLines(i32(player.pos.x), i32(player.pos.y), 32, 48, rl.RED)
 
     switch player.fishing.state {
